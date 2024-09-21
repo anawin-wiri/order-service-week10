@@ -11,7 +11,8 @@ import {
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, Ctx, MessagePattern, Payload, RmqContext } from '@nestjs/microservices';
+import { stat } from 'fs';
 
 @Controller('order')
 export class OrderController {
@@ -44,5 +45,23 @@ export class OrderController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.orderService.remove(+id);
+  }
+
+  @MessagePattern('order_completed')
+  async handdleOrderComplete(@Payload() data: any, @Ctx() context: RmqContext) {
+    const chanel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+    data.status = 'complete';
+    await this.orderService.update(data.id, data);
+    chanel.ack(originalMsg);
+  }
+
+  @MessagePattern('order_canceled')
+  async handdleOrderCancel(@Payload() data: any, @Ctx() context: RmqContext) {
+    const chanel = context.getChannelRef();
+    const originalMsg = context.getMessage();
+    data.status = 'cancel';
+    await this.orderService.update(data.id, data);
+    chanel.ack(originalMsg);
   }
 }
